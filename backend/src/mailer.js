@@ -39,6 +39,7 @@ export function createMailer(options) {
 }
 
 function createDryRunMailer({ outboxDir }) {
+  let sequence = 0; // evita sobrescrever arquivos quando o mesmo email recebe mais de uma mensagem
   return {
     mode: 'dry-run',
     configured: true,
@@ -48,7 +49,8 @@ function createDryRunMailer({ outboxDir }) {
     send: async ({ to, subject, html }) => {
       await fs.mkdir(outboxDir, { recursive: true });
       const safeEmail = to.replace(/[^a-z0-9@._-]/gi, '_');
-      const file = path.join(outboxDir, `${Date.now()}-${safeEmail}.html`);
+      sequence += 1;
+      const file = path.join(outboxDir, `${Date.now()}-${String(sequence).padStart(3, '0')}-${safeEmail}.html`);
       await fs.writeFile(file, html, 'utf8');
       console.log(`[dry-run] Email para ${to} salvo em ${path.relative(process.cwd(), file)} (${subject})`);
     },

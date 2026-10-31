@@ -38,9 +38,10 @@ function parseParticipants(raw, { min = MIN_PARTICIPANTS } = {}) {
   }
   if (raw.length > MAX_PARTICIPANTS) throw badRequest(`O limite é de ${MAX_PARTICIPANTS} participantes.`);
 
+  // Nomes precisam ser únicos (são eles que identificam quem tirou quem).
+  // Emails podem se repetir: ex.: um casal ou crianças que usam o email dos pais.
   const ids = new Set();
   const names = new Map();
-  const emails = new Map();
 
   return raw.map((item, index) => {
     const position = index + 1;
@@ -65,12 +66,6 @@ function parseParticipants(raw, { min = MIN_PARTICIPANTS } = {}) {
       );
     }
     names.set(nameKey, name);
-
-    const emailKey = email.toLowerCase();
-    if (emails.has(emailKey)) {
-      throw badRequest(`O email ${email} está repetido (${emails.get(emailKey)} e ${name}).`);
-    }
-    emails.set(emailKey, name);
 
     return { id, name, email };
   });

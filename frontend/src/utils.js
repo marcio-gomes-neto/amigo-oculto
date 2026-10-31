@@ -30,6 +30,9 @@ export function avatarColor(name) {
 /**
  * Verifica se um participante pode ser adicionado/editado.
  * Retorna uma mensagem de erro ou null.
+ *
+ * O nome precisa ser único; o email pode se repetir (ex.: crianças que usam o
+ * email dos pais) — cada pessoa recebe um email separado, com o próprio nome.
  */
 export function participantError({ name, email }, participants, ignoreId) {
   if (!name) return 'Informe o nome do participante.';
@@ -39,10 +42,17 @@ export function participantError({ name, email }, participants, ignoreId) {
   if (others.some((p) => normalizeKey(p.name) === normalizeKey(name))) {
     return `Já existe alguém chamado "${name}". Use sobrenome ou apelido para não haver confusão.`;
   }
-  if (others.some((p) => p.email.toLowerCase() === email.toLowerCase())) {
-    return `O email ${email} já está cadastrado.`;
-  }
   return null;
+}
+
+/** Emails (em minúsculas) usados por mais de um participante. */
+export function sharedEmails(participants) {
+  const count = new Map();
+  for (const { email } of participants) {
+    const key = email.toLowerCase();
+    count.set(key, (count.get(key) ?? 0) + 1);
+  }
+  return new Set([...count].filter(([, n]) => n > 1).map(([email]) => email));
 }
 
 /**

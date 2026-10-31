@@ -6,9 +6,19 @@ import { draw } from './draw.js';
 import { renderDrawEmail } from './templates/drawEmail.js';
 import { HttpError, isValidEmail, parseDrawPayload, parseEvent, parseStatePayload } from './validation.js';
 
-async function sendDrawEmail(mailer, { giver, receiver, event }) {
-  const { subject, html, text } = renderDrawEmail({ giver, receiver, event });
+async function sendDrawEmail(mailer, { giver, receiver, event, sharedEmail }) {
+  const { subject, html, text } = renderDrawEmail({ giver, receiver, event, sharedEmail });
   await mailer.send({ to: giver.email, toName: giver.name, subject, html, text });
+}
+
+/** Emails usados por mais de um participante (em minúsculas). */
+function sharedEmailsOf(people) {
+  const count = new Map();
+  for (const { email } of people) {
+    const key = email.toLowerCase();
+    count.set(key, (count.get(key) ?? 0) + 1);
+  }
+  return new Set([...count].filter(([, n]) => n > 1).map(([email]) => email));
 }
 
 /** Resultado público de um envio: NUNCA inclui quem a pessoa tirou. */
@@ -85,13 +95,15 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
     const receiverOf = new Map(assignments.map(({ giverId, receiverId }) => [giverId, receiverId]));
     const record = db.createDraw({ participants, receiverOf, event, mode: mailer.mode });
     const byId = new Map(participants.map((p) => [p.id, p]));
+    const sharedEmails = sharedEmailsOf(participants);
 
     // Envia na ordem em que os participantes foram cadastrados (e não na ordem do
     // ciclo), para que nem a ordem dos envios revele quem tirou quem.
     for (const giver of participants) {
       const receiver = byId.get(receiverOf.get(giver.id));
+      const sharedEmail = sharedEmails.has(giver.email.toLowerCase());
       try {
-        await sendDrawEmail(mailer, { giver, receiver, event });
+        await sendDrawEmail(mailer, { giver, receiver, event, sharedEmail });
         db.updateEntry(record.id, giver.id, { email: giver.email, status: 'sent' });
       } catch (err) {
         db.updateEntry(record.id, giver.id, { email: giver.email, status: 'failed', error: errorMessage(err) });
@@ -123,15 +135,15 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
         throw new HttpError(403, 'Só é possível alterar o email de quem não recebeu a mensagem.');
       }
       if (!isValidEmail(newEmail)) throw new HttpError(400, 'Email inválido.');
-      const taken = record.entries.some((e) => e.id !== giver.id && e.email.toLowerCase() === newEmail.toLowerCase());
-      if (taken) throw new HttpError(400, 'Este email já pertence a outro participante.');
       giver.email = newEmail;
     }
 
     const receiver = record.entries.find((e) => e.id === entry.receiverId);
+    const people = record.entries.map((e) => (e.id === giver.id ? giver : e));
+    const sharedEmail = sharedEmailsOf(people).has(giver.email.toLowerCase());
     let result;
     try {
-      await sendDrawEmail(mailer, { giver, receiver, event: record.event });
+      await sendDrawEmail(mailer, { giver, receiver, event: record.event, sharedEmail });
       result = { ...giver, status: 'sent' };
     } catch (err) {
       result = { ...giver, status: 'failed', error: errorMessage(err) };
@@ -151,6 +163,7 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
     }
     const hasEvent = Object.values(event).some(Boolean);
     const { html } = renderDrawEmail({
+      sharedEmail: req.query.shared === '1',
       giver: { name: 'Maria Silva', email: 'maria.silva@exemplo.com' },
       receiver: { name: 'João Pereira' },
       event: hasEvent

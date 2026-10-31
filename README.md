@@ -12,7 +12,8 @@ Ninguém vê o resultado na tela — nem o organizador. 🤫
 ## ✨ Funcionalidades
 
 - Cadastro de participantes (nome + email), com edição, remoção e **importação de lista** colada (ex.: de uma planilha).
-- Bloqueio de nomes e emails repetidos, para não haver confusão no resultado.
+- Nomes repetidos são bloqueados, para não haver confusão no resultado.
+- **Email repetido é permitido**, desde que os nomes sejam diferentes (ex.: um casal ou crianças que usam o email dos pais). Cada pessoa recebe **um email separado**, com o próprio nome no assunto e no corpo, e um aviso de que aquele endereço é compartilhado.
 - **Regras de mão única:**
   - 🚫 **Não pode tirar:** _Ana não pode tirar Bruno_ (mas Bruno ainda pode tirar Ana).
   - 🎯 **Deve tirar:** _Carla obrigatoriamente tira Diego_ (Diego não é obrigado a tirar Carla).
@@ -112,7 +113,7 @@ EMAIL_DRY_RUN=true
 
 Nesse modo, nenhum email é enviado: cada email vira um arquivo `.html` em `backend/outbox/`, que você pode abrir no navegador. ⚠️ Esses arquivos revelam o resultado — use só para testar!
 
-Você também pode ver como o email fica, com nomes de exemplo, em <http://localhost:3001/api/email/preview> (ou pelo link **"Ver como fica o email"** no app).
+Você também pode ver como o email fica, com nomes de exemplo, em <http://localhost:3001/api/email/preview> (ou pelo link **"Ver como fica o email"** no app). Para ver a versão com o aviso de email compartilhado, use <http://localhost:3001/api/email/preview?shared=1>.
 
 ---
 
@@ -139,7 +140,7 @@ Acesse: **<http://localhost:3001>**
 
 ## 🧭 Usando o app
 
-1. **Participantes:** adicione nome e email de cada pessoa (mínimo de 3). Para muitas pessoas, use **"Colar uma lista de participantes"** — uma pessoa por linha, no formato `Nome, email`.
+1. **Participantes:** adicione nome e email de cada pessoa (mínimo de 3). Para muitas pessoas, use **"Colar uma lista de participantes"** — uma pessoa por linha, no formato `Nome, email`. Os nomes precisam ser diferentes; o email pode se repetir (o app marca esses participantes como **compartilhado**).
 2. **Regras (opcional):** escolha quem, o tipo da regra (**não pode tirar** / **deve tirar**) e quem. As regras valem só no sentido indicado.
 3. **Detalhes do evento (opcional):** nome, data, valor sugerido e um recado. Tudo isso aparece no email.
 4. **Sorteio:** confira o checklist (participantes, regras válidas e email configurado) e clique em **Sortear e enviar emails**.

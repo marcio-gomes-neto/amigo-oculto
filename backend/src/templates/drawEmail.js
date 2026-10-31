@@ -99,10 +99,11 @@ function eventDetailsHtml(event) {
 }
 
 /**
- * @param {{ giver: {name: string, email: string}, receiver: {name: string}, event?: object }} data
+ * @param {{ giver: {name: string, email: string}, receiver: {name: string}, event?: object, sharedEmail?: boolean }} data
+ *   sharedEmail: true quando o mesmo endereço recebe o resultado de mais de um participante.
  * @returns {{ subject: string, html: string, text: string }}
  */
-export function renderDrawEmail({ giver, receiver, event = {} }) {
+export function renderDrawEmail({ giver, receiver, event = {}, sharedEmail = false }) {
   const eventTitle = event.name?.trim() || 'Amigo Oculto';
   const subject = `🎁 ${eventTitle}: ${giver.name}, seu amigo oculto chegou!`;
 
@@ -160,6 +161,13 @@ export function renderDrawEmail({ giver, receiver, event = {} }) {
             <div style="margin-top:1px;font-size:14px;color:${C.muted};word-break:break-all;">${giverEmail}</div>
           </td>
         </tr>
+        ${
+          sharedEmail
+            ? `<tr><td colspan="2" style="padding:0 16px 16px;">
+          <div style="font-size:13px;line-height:1.55;color:#7a5a12;background:${C.goldSoft};border:1px solid #f3dfb2;border-radius:10px;padding:10px 12px;">📬 Este endereço de email é usado por mais de um participante. Este resultado é <strong>somente de ${giverName}</strong> — cada pessoa recebe um email separado, com o próprio nome.</div>
+        </td></tr>`
+            : ''
+        }
       </table>
       <p style="margin:12px 2px 0;font-size:13px;line-height:1.55;color:${C.faint};">⚠️ Você não é <strong style="color:${C.muted};">${giverName}</strong>? Não continue lendo: apague esta mensagem e avise o organizador.</p>
     </td></tr>
@@ -224,6 +232,11 @@ export function renderDrawEmail({ giver, receiver, event = {} }) {
     `Olá, ${giver.name}!`,
     '',
     `Este email é exclusivo para: ${giver.name} <${giver.email}>`,
+    ...(sharedEmail
+      ? [
+          `Este endereço de email é usado por mais de um participante. Este resultado é SOMENTE de ${giver.name} — cada pessoa recebe um email separado, com o próprio nome.`,
+        ]
+      : []),
     `Se você não é ${giver.name}, não continue lendo: apague esta mensagem e avise o organizador.`,
     '',
     '========================================',

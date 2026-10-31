@@ -126,10 +126,16 @@ export function RulesSection({ participants, rules, setRules }) {
       </p>
 
       {rules.length > 0 && (
-        <div className="rule-groups">
-          <RuleGroup title="Bloqueios" type="block" rules={blocks} byId={byId} setRules={setRules} />
-          <RuleGroup title="Obrigatórias" type="force" rules={forced} byId={byId} setRules={setRules} />
-        </div>
+        <details className="rule-disclosure">
+          <summary>
+            <Icon name="chevron" size={16} className="rule-disclosure-chevron" />
+            <span className="rule-disclosure-title">Regras criadas</span>
+          </summary>
+          <div className="rule-groups">
+            <RuleGroup title="Bloqueios" type="block" rules={blocks} byId={byId} setRules={setRules} />
+            <RuleGroup title="Obrigatórias" type="force" rules={forced} byId={byId} setRules={setRules} />
+          </div>
+        </details>
       )}
     </Section>
   );

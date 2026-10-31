@@ -678,6 +678,53 @@ input:disabled {
   box-shadow: 0 1px 4px rgba(45, 36, 51, 0.1);
 }
 
+.rule-disclosure {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.rule-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
+
+.rule-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rule-disclosure > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.rule-disclosure-chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+
+.rule-disclosure[open] .rule-disclosure-chevron {
+  transform: rotate(90deg);
+}
+
+.rule-disclosure .rule-groups {
+  margin-top: 0;
+  padding: 4px 14px 14px;
+}
+
+.rule-disclosure .rule {
+  background: var(--surface);
+}
+
 .rule-groups {
   display: grid;
   gap: 18px;

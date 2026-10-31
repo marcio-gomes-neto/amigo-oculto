@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+backend/outbox/
+*.log
+.DS_Store
+coverage/
+backend/data/
+*.db
+*.db-shm
+*.db-wal

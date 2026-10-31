@@ -1,0 +1,22 @@
+{
+  "name": "amigo-oculto",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicativo de amigo oculto com sorteio por email",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c magenta,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w frontend",
+    "start": "npm start -w backend",
+    "test": "npm test -w backend"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

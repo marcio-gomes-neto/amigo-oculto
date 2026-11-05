@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import cors from 'cors';
 import express from 'express';
-import { draw } from './draw.js';
+import { checkDraw, draw } from './draw.js';
 import { renderDrawEmail } from './templates/drawEmail.js';
 import { HttpError, isValidEmail, parseDrawPayload, parseEvent, parseStatePayload } from './validation.js';
 
@@ -40,24 +40,92 @@ function publicDraw(record) {
 
 const errorMessage = (err) => err?.message || 'Erro desconhecido';
 
+const notFound = () => new HttpError(404, 'Amigo oculto não encontrado.');
+
+/** Data de hoje no fuso do servidor, no mesmo formato do campo de data do evento (AAAA-MM-DD). */
+function today() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * Status de um amigo oculto (ele nunca sai da lista, só muda de status):
+ *  - draft: ainda não foi sorteado;
+ *  - drawn: já foi sorteado e o evento ainda vai acontecer (ou não tem data);
+ *  - finished: já foi sorteado e a data do evento passou.
+ */
+export function groupStatus({ event, draw }, now = today()) {
+  if (!draw) return 'draft';
+  return /^\d{4}-\d{2}-\d{2}$/.test(event.date) && event.date < now ? 'finished' : 'drawn';
+}
+
+const groupSummary = (group) => ({ ...group, status: groupStatus(group) });
+
 export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
   const app = express();
   app.disable('x-powered-by');
   if (corsOrigin) app.use('/api', cors({ origin: corsOrigin.split(',').map((o) => o.trim()) }));
   app.use(express.json({ limit: '300kb' }));
 
+  const requireGroup = (req) => {
+    const group = db.getGroup(req.params.groupId);
+    if (!group) throw notFound();
+    return group;
+  };
+
   app.get('/api/health', (req, res) => {
     res.json({ ok: true, email: { mode: mailer.mode, configured: mailer.configured } });
   });
 
-  /** Tudo que o app precisa para abrir: participantes, regras, evento e o último sorteio. */
-  app.get('/api/state', (req, res) => {
-    res.json({ ...db.getState(), lastDraw: publicDraw(db.getCurrentDraw()) });
+  /** Lista de amigos ocultos, com status e resumo do sorteio (nunca quem tirou quem). */
+  app.get('/api/groups', (req, res) => {
+    res.json({ groups: db.listGroups().map(groupSummary) });
+  });
+
+  /** Cria um amigo oculto vazio (opcionalmente já com os detalhes do evento). */
+  app.post('/api/groups', (req, res) => {
+    const { id, createdAt, event } = db.createGroup({ event: parseEvent(req.body?.event) });
+    res.status(201).json(groupSummary({ id, createdAt, event, participants: 0, rules: 0, draw: null }));
+  });
+
+  /**
+   * "Criar novo sorteio": cada amigo oculto tem um único sorteio, então sortear de novo
+   * cria um novo amigo oculto na lista com os mesmos participantes e regras. O original fica como está.
+   */
+  app.post('/api/groups/:groupId/duplicate', (req, res) => {
+    const group = requireGroup(req);
+    const event = req.body?.event ? parseEvent(req.body.event) : group.event;
+    const copy = db.duplicateGroup(group.id, { event });
+    const { participants, rules } = db.getState(copy.id);
+    res.status(201).json(
+      groupSummary({
+        id: copy.id,
+        createdAt: copy.createdAt,
+        event: copy.event,
+        participants: participants.length,
+        rules: rules.length,
+        draw: null,
+      }),
+    );
+  });
+
+  /** Apaga o amigo oculto com participantes, regras e sorteios (emails já enviados não voltam). */
+  app.delete('/api/groups/:groupId', (req, res) => {
+    if (!db.deleteGroup(req.params.groupId)) throw notFound();
+    res.json({ ok: true });
+  });
+
+  /** Tudo que a tela de um amigo oculto precisa para abrir: participantes, regras, evento e o último sorteio. */
+  app.get('/api/groups/:groupId/state', (req, res) => {
+    const group = requireGroup(req);
+    res.json({ ...db.getState(group.id), lastDraw: publicDraw(db.getCurrentDraw(group.id)) });
   });
 
   /** Salva participantes, regras e evento (o frontend chama isso automaticamente a cada alteração). */
-  app.put('/api/state', (req, res) => {
-    db.saveState(parseStatePayload(req.body));
+  app.put('/api/groups/:groupId/state', (req, res) => {
+    const group = requireGroup(req);
+    db.saveState(group.id, parseStatePayload(req.body));
     res.json({ ok: true });
   });
 
@@ -76,8 +144,12 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
     }
   });
 
-  /** Realiza o sorteio e envia um email para cada participante. */
-  app.post('/api/draw', async (req, res) => {
+  /** Realiza o sorteio do amigo oculto e envia um email para cada participante. */
+  app.post('/api/groups/:groupId/draw', async (req, res) => {
+    const group = requireGroup(req);
+    if (group.currentDrawId) {
+      throw new HttpError(409, 'Este amigo oculto já foi sorteado. Para sortear de novo, crie um novo sorteio a partir dele.');
+    }
     const { participants, rules, event } = parseDrawPayload(req.body);
     const assignments = draw(participants, rules);
 
@@ -93,7 +165,7 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
 
     // Guarda o sorteio no banco antes de enviar: se algo falhar no meio, dá para reenviar depois.
     const receiverOf = new Map(assignments.map(({ giverId, receiverId }) => [giverId, receiverId]));
-    const record = db.createDraw({ participants, receiverOf, event, mode: mailer.mode });
+    const record = db.createDraw({ groupId: group.id, participants, receiverOf, event, mode: mailer.mode });
     const byId = new Map(participants.map((p) => [p.id, p]));
     const sharedEmails = sharedEmailsOf(participants);
 
@@ -111,12 +183,6 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
     }
 
     res.status(201).json(publicDraw(db.getDraw(record.id)));
-  });
-
-  /** "Preparar novo sorteio": tira o último resultado da tela (ele continua guardado no banco). */
-  app.delete('/api/draw/current', (req, res) => {
-    db.clearCurrentDraw();
-    res.json({ ok: true });
   });
 
   /** Reenvia o email de um participante (opcionalmente corrigindo o email, se o envio falhou). */
@@ -150,6 +216,44 @@ export function createApp({ mailer, db, corsOrigin, staticDir } = {}) {
     }
     db.updateEntry(record.id, giver.id, result);
     res.json({ result: publicResult(result) });
+  });
+
+  /**
+   * Área secreta: sorteios do amigo oculto com a conferência de integridade e o
+   * status dos envios. Ainda NÃO revela os pares — isso é feito um por vez abaixo.
+   */
+  app.get('/api/debug/groups/:groupId/draws', (req, res) => {
+    const group = requireGroup(req);
+    const draws = db.listDraws(group.id).map((record) => ({
+      ...publicDraw(record),
+      current: record.id === group.currentDrawId,
+      check: checkDraw(record.entries),
+    }));
+    res.json({ event: group.event, draws });
+  });
+
+  /**
+   * Área secreta: revela UM par. direction=receiver responde quem a pessoa tirou;
+   * direction=giver responde quem tirou a pessoa.
+   */
+  app.get('/api/debug/draws/:drawId/reveal', (req, res) => {
+    const record = db.getDraw(req.params.drawId);
+    if (!record) throw new HttpError(404, 'Sorteio não encontrado.');
+
+    const { participantId, direction } = req.query;
+    if (direction !== 'receiver' && direction !== 'giver') {
+      throw new HttpError(400, 'Informe direction=receiver (quem a pessoa tirou) ou direction=giver (quem tirou a pessoa).');
+    }
+    const person = record.entries.find((e) => e.id === participantId);
+    if (!person) throw new HttpError(404, 'Participante não encontrado neste sorteio.');
+
+    const giver = direction === 'receiver' ? person : record.entries.find((e) => e.receiverId === person.id);
+    const receiver = record.entries.find((e) => e.id === giver?.receiverId);
+    if (!giver || !receiver) throw new HttpError(409, 'Este sorteio está inconsistente: o par não foi encontrado.');
+
+    const asked = direction === 'receiver' ? `quem ${person.name} tirou` : `quem tirou ${person.name}`;
+    console.log(`🔒 Área secreta: consultado ${asked} (sorteio ${record.id})`);
+    res.json({ giver: { id: giver.id, name: giver.name }, receiver: { id: receiver.id, name: receiver.name } });
   });
 
   /** Pré-visualização do template de email com nomes de exemplo. */

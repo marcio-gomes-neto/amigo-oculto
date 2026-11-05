@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { draw, DrawError } from '../src/draw.js';
+import { checkDraw, draw, DrawError } from '../src/draw.js';
 
 const people = (n) =>
   Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, name: `Pessoa ${i + 1}`, email: `p${i + 1}@x.com` }));
@@ -239,5 +239,27 @@ describe('draw()', () => {
       expectError(people(3), [{ type: 'block', from: 'p1', to: 'p9' }], /não existe/);
       expectError(people(3), [{ type: 'block', from: 'p1', to: 'p1' }], /própria pessoa/);
     });
+  });
+});
+
+describe('checkDraw()', () => {
+  const entry = (id, receiverId) => ({ id, name: id.toUpperCase(), receiverId });
+
+  it('aprova um ciclo único', () => {
+    assert.deepEqual(checkDraw([entry('a', 'b'), entry('b', 'c'), entry('c', 'a')]), { ok: true, problems: [] });
+  });
+
+  it('aponta quem ficou sem ser tirado, quem foi tirado duas vezes e quem tirou a si mesmo', () => {
+    const { ok, problems } = checkDraw([entry('a', 'b'), entry('b', 'b'), entry('c', 'a')]);
+    assert.equal(ok, false);
+    assert.ok(problems.includes('B tirou a si mesmo.'));
+    assert.ok(problems.includes('Ninguém tirou C.'));
+    assert.ok(problems.includes('B foi tirado por 2 pessoas.'));
+  });
+
+  it('aponta quando há grupos fechados em vez de um ciclo único', () => {
+    const { ok, problems } = checkDraw([entry('a', 'b'), entry('b', 'a'), entry('c', 'd'), entry('d', 'c')]);
+    assert.equal(ok, false);
+    assert.match(problems[0], /ciclo único/);
   });
 });

@@ -255,3 +255,40 @@ function toAssignments(cycle) {
     receiverId: cycle[(i + 1) % cycle.length],
   }));
 }
+
+/**
+ * Confere um sorteio já salvo, sem revelar nenhum par (usado na área secreta).
+ * Verifica se cada pessoa tirou exatamente uma, foi tirada por exatamente uma,
+ * ninguém tirou a si mesmo e tudo forma um único ciclo.
+ *
+ * @param {{id: string, name: string, receiverId: string}[]} entries
+ * @returns {{ok: boolean, problems: string[]}}
+ */
+export function checkDraw(entries) {
+  const problems = [];
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const timesDrawn = new Map();
+
+  for (const entry of entries) {
+    if (entry.receiverId === entry.id) problems.push(`${entry.name} tirou a si mesmo.`);
+    else if (!byId.has(entry.receiverId)) problems.push(`${entry.name} tirou alguém que não está no sorteio.`);
+    timesDrawn.set(entry.receiverId, (timesDrawn.get(entry.receiverId) ?? 0) + 1);
+  }
+  for (const entry of entries) {
+    const count = timesDrawn.get(entry.id) ?? 0;
+    if (count === 0) problems.push(`Ninguém tirou ${entry.name}.`);
+    if (count > 1) problems.push(`${entry.name} foi tirado por ${count} pessoas.`);
+  }
+
+  if (problems.length === 0 && entries.length > 0) {
+    let current = entries[0];
+    let steps = 0;
+    do {
+      current = byId.get(current.receiverId);
+      steps += 1;
+    } while (current !== entries[0] && steps <= entries.length);
+    if (steps !== entries.length) problems.push('O sorteio não forma um ciclo único (há grupos fechados entre si).');
+  }
+
+  return { ok: problems.length === 0, problems };
+}

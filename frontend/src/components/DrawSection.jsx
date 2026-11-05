@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api.js';
-import { MIN_PARTICIPANTS, isValidEmail, plural } from '../utils.js';
+import { MIN_PARTICIPANTS, isValidEmail, plural, sharedEmails } from '../utils.js';
 import { Avatar } from './Avatar.jsx';
 import { Icon } from './Icon.jsx';
 import { Modal } from './Modal.jsx';
@@ -185,6 +185,12 @@ export function DrawSection({ participants, rules, event, validation, health, on
               </li>
             ))}
           </ul>
+          {sharedEmails(participants).size > 0 && (
+            <p className="muted">
+              📬 Alguns participantes compartilham o mesmo email. Cada pessoa recebe uma mensagem separada, com o
+              próprio nome no assunto e no corpo do email.
+            </p>
+          )}
           <p className="muted">Confira se os emails estão corretos: o resultado só aparece no email de cada pessoa.</p>
         </Modal>
       )}

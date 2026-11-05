@@ -144,17 +144,18 @@ describe('API', () => {
     assert.equal(mailer.sent.length, 0);
   });
 
-  it('valida o payload (nomes e emails repetidos, emails inválidos)', async () => {
+  it('valida o payload (nomes repetidos, emails inválidos)', async () => {
     const dupName = await post('/api/draw', {
       participants: [...participants, { id: 'e', name: 'ana souza', email: 'outra@exemplo.com' }],
     });
     assert.equal(dupName.status, 400);
     assert.match(dupName.body.error, /dois participantes chamados/);
 
-    const dupEmail = await post('/api/draw', {
-      participants: [...participants, { id: 'e', name: 'Eva', email: 'ANA@exemplo.com' }],
+    // Mesmo nome é recusado mesmo com o mesmo email.
+    const sameNameSameEmail = await post('/api/draw/validate', {
+      participants: [...participants, { id: 'e', name: 'Ana Souza', email: 'ana@exemplo.com' }],
     });
-    assert.equal(dupEmail.status, 400);
+    assert.equal(sameNameSameEmail.body.ok, false);
 
     const badEmail = await post('/api/draw', {
       participants: [...participants.slice(0, 3), { id: 'e', name: 'Eva', email: 'eva@' }],
@@ -198,6 +199,45 @@ describe('API', () => {
     assert.match(anaMail.text, /SEU AMIGO OCULTO É: CARLA DIAS/);
     const brunoMail = mailer.sent.find((m) => m.to === 'bruno@exemplo.com');
     assert.doesNotMatch(brunoMail.text, /SEU AMIGO OCULTO É: DIEGO REIS/);
+  });
+
+  it('permite email repetido com nomes diferentes: cada pessoa recebe o próprio email', async () => {
+    const family = [
+      { id: 'a', name: 'Ana Souza', email: 'familia@exemplo.com' },
+      { id: 'b', name: 'Bruno Souza', email: 'FAMILIA@exemplo.com' },
+      { id: 'c', name: 'Carla Dias', email: 'carla@exemplo.com' },
+      { id: 'd', name: 'Diego Reis', email: 'diego@exemplo.com' },
+    ];
+    const ok = await post('/api/draw/validate', { participants: family });
+    assert.deepEqual(ok.body, { ok: true });
+
+    const res = await post('/api/draw', { participants: family });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.sent, 4);
+
+    const shared = mailer.sent.filter((m) => m.to.toLowerCase() === 'familia@exemplo.com');
+    assert.equal(shared.length, 2);
+    assert.deepEqual(shared.map((m) => m.toName).sort(), ['Ana Souza', 'Bruno Souza']);
+    for (const mail of shared) {
+      assert.ok(mail.subject.includes(mail.toName), 'assunto identifica a pessoa');
+      assert.match(mail.html, /usado por mais de um participante/);
+      assert.match(mail.text, new RegExp(`SOMENTE de ${mail.toName}`));
+    }
+    const carla = mailer.sent.find((m) => m.to === 'carla@exemplo.com');
+    assert.doesNotMatch(carla.html, /usado por mais de um participante/);
+
+    // Ao corrigir um email no reenvio, também pode usar um endereço que já existe.
+    mailer.failFor.add('diego@exemplo.com');
+    const second = await post('/api/draw', { participants: family });
+    const resend = await post(`/api/draw/${second.body.drawId}/resend`, {
+      participantId: 'd',
+      email: 'carla@exemplo.com',
+    });
+    assert.equal(resend.body.result.status, 'sent');
+    const diegoMail = mailer.sent.at(-1);
+    assert.equal(diegoMail.to, 'carla@exemplo.com');
+    assert.equal(diegoMail.toName, 'Diego Reis');
+    assert.match(diegoMail.html, /usado por mais de um participante/);
   });
 
   it('não envia nada se a conexão com o servidor de email falhar', async () => {

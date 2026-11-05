@@ -610,12 +610,40 @@ input:disabled {
   white-space: nowrap;
 }
 
-.participant-info span {
+.participant-info > span {
   font-size: 0.85rem;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.participant-info .participant-email {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.participant-email .email-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #8a5a12;
+  background: var(--warn-soft);
+  border-radius: 999px;
+  cursor: help;
 }
 
 .row-actions {

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { cleanName, participantError, parseImportList, plural, uid } from '../utils.js';
+import { cleanName, participantError, parseImportList, plural, sharedEmails, uid } from '../utils.js';
 import { Avatar } from './Avatar.jsx';
 import { Icon } from './Icon.jsx';
 import { Modal } from './Modal.jsx';
@@ -27,6 +27,8 @@ export function ParticipantsSection({ participants, setParticipants, onRemove, o
     setError(null);
     nameRef.current?.focus();
   };
+
+  const shared = sharedEmails(participants);
 
   const updateParticipant = (id, data) => {
     setParticipants((list) => list.map((p) => (p.id === id ? { ...p, ...data } : p)));
@@ -109,6 +111,7 @@ export function ParticipantsSection({ participants, setParticipants, onRemove, o
               key={participant.id}
               participant={participant}
               participants={participants}
+              sharedEmail={shared.has(participant.email.toLowerCase())}
               onSave={(data) => updateParticipant(participant.id, data)}
               onRemove={() => onRemove(participant.id)}
             />
@@ -146,7 +149,7 @@ export function ParticipantsSection({ participants, setParticipants, onRemove, o
   );
 }
 
-function ParticipantRow({ participant, participants, onSave, onRemove }) {
+function ParticipantRow({ participant, participants, sharedEmail, onSave, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(participant.name);
   const [email, setEmail] = useState(participant.email);
@@ -208,7 +211,19 @@ function ParticipantRow({ participant, participants, onSave, onRemove }) {
       <Avatar name={participant.name} />
       <div className="participant-info">
         <strong>{participant.name}</strong>
-        <span>{participant.email}</span>
+        <span className="participant-email">
+          <span className="email-text" title={participant.email}>
+            {participant.email}
+          </span>
+          {sharedEmail && (
+            <span
+              className="shared-tag"
+              title="Mais de um participante usa este email. Cada pessoa recebe um email separado, com o próprio nome."
+            >
+              <Icon name="users" size={12} /> compartilhado
+            </span>
+          )}
+        </span>
       </div>
       <div className="row-actions">
         <button

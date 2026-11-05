@@ -3,6 +3,24 @@ import { api } from '../api.js';
 
 export const EMPTY_EVENT = { name: '', date: '', budget: '', message: '' };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Tenta de novo por alguns segundos: ao rodar `npm start`, o navegador pode abrir
+ * antes do backend terminar de subir.
+ */
+async function withRetry(fn, attempts = 8, delayMs = 1000) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      // Erros 4xx são definitivos; falha de rede ou 5xx (ex.: proxy sem backend) vale tentar de novo.
+      if (attempt >= attempts || (err.status && err.status < 500)) throw err;
+      await sleep(delayMs);
+    }
+  }
+}
+
 /**
  * Carrega participantes, regras, evento e último sorteio do servidor (SQLite)
  * e salva automaticamente cada alteração.
@@ -22,7 +40,7 @@ export function useAppState() {
   const load = useCallback(async () => {
     setLoadStatus('loading');
     try {
-      const state = await api.getState();
+      const state = await withRetry(api.getState);
       skipNextSave.current = true; // o que acabou de chegar do servidor não precisa ser salvo de volta
       setParticipants(state.participants);
       setRules(state.rules);

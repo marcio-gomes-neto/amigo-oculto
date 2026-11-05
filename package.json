@@ -8,9 +8,10 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c magenta,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "start": "node scripts/start.mjs",
+    "dev": "concurrently --kill-others-on-fail -n api,web -c magenta,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w frontend",
-    "start": "npm start -w backend",
+    "prod": "npm run build && npm start -w backend",
     "test": "npm test -w backend"
   },
   "engines": {

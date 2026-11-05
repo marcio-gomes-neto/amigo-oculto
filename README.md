@@ -7,6 +7,27 @@ Ninguém vê o resultado na tela — nem o organizador. 🤫
 - **Backend:** Node.js + Express + Nodemailer + SQLite
 - **Frontend:** React + Vite
 
+## ⚡ Início rápido
+
+Com o [Node.js 22.13+](https://nodejs.org/) instalado, basta **um comando**:
+
+```bash
+git clone https://github.com/marcio-gomes-neto/amigo-oculto.git
+cd amigo-oculto
+npm start
+```
+
+O `npm start` faz tudo o que é necessário para rodar a aplicação:
+
+1. confere a versão do Node.js;
+2. instala as dependências (só na primeira vez, ou se faltar alguma);
+3. cria o `backend/.env` a partir do `.env.example`, se ainda não existir;
+4. sobe o **backend** e o **frontend** juntos e abre o navegador em **<http://localhost:5173>**.
+
+Para parar tudo, pressione **Ctrl+C**. Para não abrir o navegador: `npm start -- --no-open`.
+
+> O app abre mesmo sem o email configurado. Para enviar o sorteio de verdade, preencha `EMAIL_USER` e `EMAIL_TOKEN` no `backend/.env` ([veja como](#-configurando-o-envio-de-email)) e rode `npm start` de novo.
+
 ---
 
 ## ✨ Funcionalidades
@@ -54,18 +75,13 @@ O código está em [`backend/src/draw.js`](backend/src/draw.js).
 
 ---
 
-## 🚀 Instalação
+## 🚀 Instalação manual (opcional)
+
+O `npm start` já faz isso por você, mas se preferir fazer passo a passo:
 
 ```bash
-# 1. Clone o repositório
-git clone https://github.com/marcio-gomes-neto/amigo-oculto.git
-cd amigo-oculto
-
-# 2. Instale as dependências (backend e frontend de uma vez)
-npm install
-
-# 3. Crie o arquivo de configuração
-cp backend/.env.example backend/.env
+npm install                              # dependências do backend e do frontend
+cp backend/.env.example backend/.env     # arquivo de configuração
 ```
 
 Depois, abra o `backend/.env` e preencha os dados de email (veja abaixo).
@@ -117,24 +133,16 @@ Você também pode ver como o email fica, com nomes de exemplo, em <http://local
 
 ---
 
-## ▶️ Rodando o projeto
+## ▶️ Comandos
 
-### Desenvolvimento
+| Comando         | O que faz                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| `npm start`     | **Início rápido:** prepara tudo (dependências + `.env`) e sobe backend e frontend. Abre **<http://localhost:5173>** |
+| `npm run dev`   | Só sobe backend (porta **3001**) e frontend (porta **5173**) juntos, sem as verificações             |
+| `npm run prod`  | Modo produção: compila o frontend e sobe só o backend, que serve tudo em **<http://localhost:3001>** |
+| `npm test`      | Roda os testes automatizados                                                                       |
 
-```bash
-npm run dev
-```
-
-Isso sobe o backend (porta **3001**) e o frontend (porta **5173**) juntos. Acesse: **<http://localhost:5173>**
-
-### Produção
-
-```bash
-npm run build   # compila o frontend
-npm start       # sobe o backend, que também serve o frontend compilado
-```
-
-Acesse: **<http://localhost:3001>**
+Em desenvolvimento, o frontend recarrega sozinho ao salvar um arquivo e o backend reinicia sozinho a cada alteração.
 
 ---
 
@@ -231,6 +239,8 @@ Exemplo de corpo para `POST /api/draw`:
 ```
 amigo-oculto/
 ├── package.json              # scripts que rodam backend + frontend juntos
+├── scripts/
+│   └── start.mjs             # início rápido (npm start)
 ├── backend/
 │   ├── .env.example          # modelo de configuração
 │   ├── src/
@@ -273,6 +283,6 @@ Os testes cobrem o algoritmo (ciclo único, aleatoriedade, bloqueios e regras ob
 | `Invalid login: 535 ... Username and Password not accepted` | No Gmail, use uma **Senha de app** (não a senha normal) e confira se a verificação em duas etapas está ativa. |
 | "Email não configurado" no app                        | Preencha `EMAIL_USER` e `EMAIL_TOKEN` no `backend/.env` e reinicie o servidor.                |
 | Participante não recebeu                              | Peça para olhar o **spam**. Depois use **Reenviar** no app.                                   |
-| "Servidor indisponível" no app                        | Verifique se o backend está rodando (`npm run dev`).                                          |
+| "Servidor indisponível" no app                        | Verifique se o backend está rodando (`npm start`) e se não apareceu erro no terminal.          |
 | `No such built-in module: node:sqlite`                | Atualize o Node.js para a versão 22.13 ou mais recente.                                       |
-| Porta em uso                                          | Mude `PORT` no `.env` (e, em desenvolvimento, rode o frontend com `API_URL=http://localhost:NOVA_PORTA`). |
+| "A porta 3001 já está em uso"                         | O app provavelmente já está rodando em outro terminal. Feche-o ou mude `PORT` no `backend/.env` (o frontend usa a mesma porta automaticamente). |

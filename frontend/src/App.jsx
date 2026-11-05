@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { DrawSection } from './components/DrawSection.jsx';
 import { EventSection } from './components/EventSection.jsx';
 import { Icon } from './components/Icon.jsx';
@@ -18,6 +19,13 @@ export default function App() {
   const { participants, setParticipants, rules, setRules, event, setEvent, lastDraw, setLastDraw } = state;
   const [health, retryHealth] = useHealth();
   const validation = useDrawValidation(participants, rules, health.status === 'ok');
+
+  // Se o backend demorou a subir, confere de novo o status do email assim que os dados carregarem.
+  const loaded = state.loadStatus === 'ready';
+  useEffect(() => {
+    if (loaded && health.status === 'offline') retryHealth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   const removeParticipant = (id) => {
     setParticipants((list) => list.filter((p) => p.id !== id));

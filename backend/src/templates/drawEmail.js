@@ -58,6 +58,13 @@ export function formatEventDate(value = '') {
   }).format(date);
 }
 
+/** "50" => "R$ 50". Se já vier com "R$", fica como está. */
+export function formatBudget(value = '') {
+  const trimmed = String(value).trim();
+  if (/^R\$/i.test(trimmed)) return trimmed;
+  return `R$ ${trimmed}`;
+}
+
 function avatar(name, { size, background, fontSize }) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
     <td width="${size}" height="${size}" align="center" valign="middle" bgcolor="${background}"
@@ -68,7 +75,7 @@ function avatar(name, { size, background, fontSize }) {
 function eventDetailsHtml(event) {
   const rows = [];
   if (event.date) rows.push(['📅', 'Data', escapeHtml(formatEventDate(event.date))]);
-  if (event.budget) rows.push(['💰', 'Valor sugerido', escapeHtml(event.budget)]);
+  if (event.budget) rows.push(['💰', 'Valor sugerido', escapeHtml(formatBudget(event.budget))]);
 
   const message = event.message
     ? `<tr><td colspan="2" style="padding:12px 0 0;">
@@ -223,7 +230,7 @@ export function renderDrawEmail({ giver, receiver, event = {}, sharedEmail = fal
 
   const details = [];
   if (event.date) details.push(`- Data: ${formatEventDate(event.date)}`);
-  if (event.budget) details.push(`- Valor sugerido: ${event.budget}`);
+  if (event.budget) details.push(`- Valor sugerido: ${formatBudget(event.budget)}`);
   if (event.message) details.push(`- Recado do organizador: ${event.message}`);
 
   const text = [

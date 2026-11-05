@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { plural, uid } from '../utils.js';
 import { Avatar } from './Avatar.jsx';
 import { Icon } from './Icon.jsx';
@@ -27,11 +27,19 @@ function ruleError({ type, from, to }, rules, nameOf) {
   return null;
 }
 
-export function RulesSection({ participants, rules, setRules }) {
+export function RulesSection({ participants, rules, setRules, validation }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [type, setType] = useState('block');
   const [error, setError] = useState(null);
+  const [showRules, setShowRules] = useState(false);
+
+  // O servidor verifica o sorteio a cada mudança; se as regras o tornam impossível,
+  // o aviso aparece aqui e a lista de regras abre para facilitar a correção.
+  const impossible = validation?.status === 'error' && validation.kind === 'rules' && rules.length > 0;
+  useEffect(() => {
+    if (impossible) setShowRules(true);
+  }, [impossible]);
 
   const byId = new Map(participants.map((p) => [p.id, p]));
   const nameOf = (id) => byId.get(id)?.name ?? '?';
@@ -125,8 +133,23 @@ export function RulesSection({ participants, rules, setRules }) {
         </span>
       </p>
 
+      {impossible && (
+        <div className="rule-warning" role="alert">
+          <Icon name="alert" size={18} />
+          <div>
+            <strong>Com essas regras, o sorteio é impossível.</strong>
+            <p>{validation.message}</p>
+            <small>Remova ou ajuste alguma regra abaixo. O sorteio fica bloqueado até isso ser resolvido.</small>
+          </div>
+        </div>
+      )}
+
       {rules.length > 0 && (
-        <details className="rule-disclosure">
+        <details
+          className={`rule-disclosure ${impossible ? 'has-problem' : ''}`}
+          open={showRules}
+          onToggle={(e) => setShowRules(e.currentTarget.open)}
+        >
           <summary>
             <Icon name="chevron" size={16} className="rule-disclosure-chevron" />
             <span className="rule-disclosure-title">Regras criadas</span>

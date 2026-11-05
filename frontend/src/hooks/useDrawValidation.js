@@ -19,9 +19,10 @@ export function useDrawValidation(participants, rules, serverOnline) {
     const timer = setTimeout(async () => {
       try {
         const result = await api.validate(participants, rules, controller.signal);
-        setValidation(result.ok ? { status: 'ok' } : { status: 'error', message: result.error });
+        // kind "rules": as regras tornam o sorteio impossível; "network": não deu para perguntar ao servidor.
+        setValidation(result.ok ? { status: 'ok' } : { status: 'error', kind: 'rules', message: result.error });
       } catch (err) {
-        if (err.name !== 'AbortError') setValidation({ status: 'error', message: err.message });
+        if (err.name !== 'AbortError') setValidation({ status: 'error', kind: 'network', message: err.message });
       }
     }, 300);
     return () => {

@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Tenta de novo por alguns segundos: ao rodar `npm start`, o navegador pode abrir
  * antes do backend terminar de subir.
  */
-async function withRetry(fn, attempts = 8, delayMs = 1000) {
+export async function withRetry(fn, attempts = 8, delayMs = 1000) {
   for (let attempt = 1; ; attempt++) {
     try {
       return await fn();
@@ -21,12 +21,19 @@ async function withRetry(fn, attempts = 8, delayMs = 1000) {
   }
 }
 
+// Fila de salvamentos compartilhada: garante que eles cheguem ao servidor na ordem certa,
+// e permite que a lista espere o último salvamento antes de carregar.
+let saveQueue = Promise.resolve();
+
+/** Espera os salvamentos pendentes terminarem (com ou sem erro). */
+export const whenSaved = () => saveQueue;
+
 /**
- * Carrega participantes, regras, evento e último sorteio do servidor (SQLite)
- * e salva automaticamente cada alteração.
+ * Carrega participantes, regras, evento e último sorteio de um amigo oculto
+ * do servidor (SQLite) e salva automaticamente cada alteração.
  */
-export function useAppState() {
-  const [loadStatus, setLoadStatus] = useState('loading'); // loading | ready | error
+export function useAppState(groupId) {
+  const [loadStatus, setLoadStatus] = useState('loading'); // loading | ready | notfound | error
   const [saveStatus, setSaveStatus] = useState('saved'); // saving | saved | error
   const [participants, setParticipants] = useState([]);
   const [rules, setRules] = useState([]);
@@ -35,12 +42,13 @@ export function useAppState() {
 
   const ready = useRef(false);
   const skipNextSave = useRef(false);
-  const saveQueue = useRef(Promise.resolve());
+  const pending = useRef(null);
 
   const load = useCallback(async () => {
     setLoadStatus('loading');
     try {
-      const state = await withRetry(api.getState);
+      await whenSaved();
+      const state = await withRetry(() => api.getState(groupId));
       skipNextSave.current = true; // o que acabou de chegar do servidor não precisa ser salvo de volta
       setParticipants(state.participants);
       setRules(state.rules);
@@ -48,14 +56,26 @@ export function useAppState() {
       setLastDraw(state.lastDraw);
       ready.current = true;
       setLoadStatus('ready');
-    } catch {
-      setLoadStatus('error');
+    } catch (err) {
+      setLoadStatus(err.status === 404 ? 'notfound' : 'error');
     }
-  }, []);
+  }, [groupId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const flush = useCallback(() => {
+    const payload = pending.current;
+    if (!payload) return;
+    pending.current = null;
+    saveQueue = saveQueue
+      .then(() => api.saveState(groupId, payload))
+      .then(
+        () => setSaveStatus('saved'),
+        () => setSaveStatus('error'),
+      );
+  }, [groupId]);
 
   // Salvamento automático (com um pequeno atraso para agrupar digitações).
   useEffect(() => {
@@ -64,18 +84,14 @@ export function useAppState() {
       skipNextSave.current = false;
       return undefined;
     }
+    pending.current = { participants, rules, event };
     setSaveStatus('saving');
-    const timer = setTimeout(() => {
-      // Fila: garante que os salvamentos cheguem ao servidor na ordem certa.
-      saveQueue.current = saveQueue.current
-        .then(() => api.saveState({ participants, rules, event }))
-        .then(
-          () => setSaveStatus('saved'),
-          () => setSaveStatus('error'),
-        );
-    }, 400);
+    const timer = setTimeout(flush, 400);
     return () => clearTimeout(timer);
-  }, [participants, rules, event]);
+  }, [participants, rules, event, flush]);
+
+  // Ao sair da tela (ex.: voltar para a lista), salva o que ainda estiver pendente.
+  useEffect(() => flush, [flush]);
 
   return {
     loadStatus,

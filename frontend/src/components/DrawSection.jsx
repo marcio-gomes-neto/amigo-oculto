@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
+import { whenSaved } from '../hooks/useAppState.js';
+import { groupHref, navigate } from '../hooks/useRoute.js';
 import { MIN_PARTICIPANTS, isValidEmail, plural, sharedEmails } from '../utils.js';
 import { Avatar } from './Avatar.jsx';
 import { Icon } from './Icon.jsx';
@@ -42,22 +44,11 @@ function Check({ state, text, action }) {
   );
 }
 
-export function DrawSection({ participants, rules, event, validation, health, onRetryHealth, lastDraw, setLastDraw }) {
+export function DrawSection({ groupId, participants, rules, event, validation, health, onRetryHealth, lastDraw, setLastDraw }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmingRedo, setConfirmingRedo] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
-
-  const prepareNewDraw = async () => {
-    setConfirmingRedo(false);
-    setError(null);
-    try {
-      await api.clearCurrentDraw();
-      setLastDraw(null);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
 
   const missing = Math.max(0, MIN_PARTICIPANTS - participants.length);
   const enoughPeople = missing === 0;
@@ -70,7 +61,7 @@ export function DrawSection({ participants, rules, event, validation, health, on
     setSending(true);
     setError(null);
     try {
-      setLastDraw(await api.draw(participants, rules, event));
+      setLastDraw(await api.draw(groupId, participants, rules, event));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -82,31 +73,8 @@ export function DrawSection({ participants, rules, event, validation, health, on
     return (
       <Section step={4} title="Sorteio" subtitle="Pronto! Agora é só esperar o grande dia.">
         <DrawResult lastDraw={lastDraw} setLastDraw={setLastDraw} onRedo={() => setConfirmingRedo(true)} />
-        {error && (
-          <p className="form-error" role="alert">
-            <Icon name="alert" size={16} /> {error}
-          </p>
-        )}
         {confirmingRedo && (
-          <Modal
-            title="Fazer um novo sorteio?"
-            onClose={() => setConfirmingRedo(false)}
-            actions={
-              <>
-                <button className="btn btn-ghost" onClick={() => setConfirmingRedo(false)} data-autofocus>
-                  Cancelar
-                </button>
-                <button className="btn btn-danger" onClick={prepareNewDraw}>
-                  Sim, preparar novo sorteio
-                </button>
-              </>
-            }
-          >
-            <p>
-              O resultado atual continuará valendo até você sortear de novo. Se fizer um novo sorteio, todos receberão
-              um email novo e o anterior <strong>deixa de valer</strong> — avise o grupo para evitar confusão.
-            </p>
-          </Modal>
+          <NewDrawModal groupId={groupId} event={event} onClose={() => setConfirmingRedo(false)} />
         )}
       </Section>
     );
@@ -241,9 +209,69 @@ function DrawResult({ lastDraw, setLastDraw, onRedo }) {
       </p>
 
       <button type="button" className="btn btn-ghost" onClick={onRedo}>
-        <Icon name="shuffle" /> Fazer um novo sorteio
+        <Icon name="shuffle" /> Criar novo sorteio
       </button>
     </div>
+  );
+}
+
+/**
+ * Cada amigo oculto tem um único sorteio. Para sortear de novo, cria um novo amigo oculto
+ * na lista com os mesmos participantes, regras e detalhes do evento, e abre ele.
+ */
+function NewDrawModal({ groupId, event, onClose }) {
+  const [name, setName] = useState(event.name ? `${event.name} (novo sorteio)` : '');
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    setError(null);
+    try {
+      await whenSaved(); // garante que a cópia leve as últimas alterações
+      const copy = await api.duplicateGroup(groupId, { ...event, name: name.trim() });
+      navigate(groupHref(copy.id));
+    } catch (err) {
+      setError(err.message);
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Criar um novo sorteio?"
+      onClose={onClose}
+      actions={
+        <>
+          <button type="button" className="btn btn-ghost" onClick={onClose} data-autofocus>
+            Cancelar
+          </button>
+          <button type="submit" form="new-draw" className="btn btn-primary" disabled={creating}>
+            <Icon name="shuffle" /> {creating ? 'Criando…' : 'Criar e abrir'}
+          </button>
+        </>
+      }
+    >
+      <form id="new-draw" className="create-group-form" onSubmit={handleSubmit}>
+        <p>
+          Um <strong>novo amigo oculto</strong> vai aparecer na lista, com os mesmos participantes, regras e detalhes do
+          evento, pronto para sortear. Este aqui continua na lista com o resultado atual.
+        </p>
+        <label className="field">
+          <span>Nome do novo amigo oculto</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Amigo Oculto" />
+        </label>
+        <p className="muted">
+          Se você sortear o novo, todos recebem um email novo. Avise o grupo de qual resultado vale para evitar confusão.
+        </p>
+        {error && (
+          <p className="form-error" role="alert">
+            <Icon name="alert" size={16} /> {error}
+          </p>
+        )}
+      </form>
+    </Modal>
   );
 }
 

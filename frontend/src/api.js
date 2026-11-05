@@ -26,17 +26,29 @@ const toPayload = (participants, rules) => ({
   rules: rules.map(({ type, from, to }) => ({ type, from, to })),
 });
 
+const groupPath = (groupId) => `/groups/${encodeURIComponent(groupId)}`;
+
 export const api = {
   health: () => request('/health'),
-  getState: () => request('/state'),
-  saveState: ({ participants, rules, event }) => request('/state', { method: 'PUT', body: { participants, rules, event } }),
-  clearCurrentDraw: () => request('/draw/current', { method: 'DELETE' }),
+  listGroups: () => request('/groups'),
+  createGroup: (event) => request('/groups', { method: 'POST', body: { event } }),
+  deleteGroup: (groupId) => request(groupPath(groupId), { method: 'DELETE' }),
+  getState: (groupId) => request(`${groupPath(groupId)}/state`),
+  saveState: (groupId, { participants, rules, event }) =>
+    request(`${groupPath(groupId)}/state`, { method: 'PUT', body: { participants, rules, event } }),
+  /** Cria um novo amigo oculto com os mesmos participantes e regras (para sortear de novo). */
+  duplicateGroup: (groupId, event) => request(`${groupPath(groupId)}/duplicate`, { method: 'POST', body: { event } }),
   validate: (participants, rules, signal) =>
     request('/draw/validate', { method: 'POST', body: toPayload(participants, rules), signal }),
-  draw: (participants, rules, event) =>
-    request('/draw', { method: 'POST', body: { ...toPayload(participants, rules), event } }),
+  draw: (groupId, participants, rules, event) =>
+    request(`${groupPath(groupId)}/draw`, { method: 'POST', body: { ...toPayload(participants, rules), event } }),
   resend: (drawId, participantId, email) =>
     request(`/draw/${encodeURIComponent(drawId)}/resend`, { method: 'POST', body: { participantId, email } }),
+  /** Área secreta: sorteios do amigo oculto (sem os pares). */
+  secretDraws: (groupId) => request(`/debug${groupPath(groupId)}/draws`),
+  /** Área secreta: revela UM par. direction "receiver" = quem a pessoa tirou; "giver" = quem tirou a pessoa. */
+  reveal: (drawId, participantId, direction) =>
+    request(`/debug/draws/${encodeURIComponent(drawId)}/reveal?${new URLSearchParams({ participantId, direction })}`),
   previewUrl: (event = {}) => {
     const params = new URLSearchParams(Object.entries(event).filter(([, value]) => value));
     const query = params.toString();

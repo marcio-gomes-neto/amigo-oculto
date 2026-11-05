@@ -32,6 +32,7 @@ Para parar tudo, pressione **Ctrl+C**. Para não abrir o navegador: `npm start -
 
 ## ✨ Funcionalidades
 
+- **Vários amigos ocultos** (família, trabalho, amigos…) numa lista com filtros por status: **não sorteado**, **sorteado** e **encerrado** (quando a data do evento passa). Dá para criar, abrir e apagar cada um.
 - Cadastro de participantes (nome + email), com edição, remoção e **importação de lista** colada (ex.: de uma planilha).
 - Nomes repetidos são bloqueados, para não haver confusão no resultado.
 - **Email repetido é permitido**, desde que os nomes sejam diferentes (ex.: um casal ou crianças que usam o email dos pais). Cada pessoa recebe **um email separado**, com o próprio nome no assunto e no corpo, e um aviso de que aquele endereço é compartilhado.
@@ -148,6 +149,10 @@ Em desenvolvimento, o frontend recarrega sozinho ao salvar um arquivo e o backen
 
 ## 🧭 Usando o app
 
+A tela inicial lista **todos os seus amigos ocultos**, com data, número de participantes, valor sugerido e situação do sorteio. Clique em **Novo amigo oculto** para criar um, ou em um da lista para abri-lo. Nenhum sai da lista sozinho: o status só muda de **Não sorteado** → **Sorteado** → **Encerrado** (depois da data do evento). Para tirar um da lista, use o ícone de lixeira.
+
+Dentro de um amigo oculto:
+
 1. **Participantes:** adicione nome e email de cada pessoa (mínimo de 3). Para muitas pessoas, use **"Colar uma lista de participantes"** — uma pessoa por linha, no formato `Nome, email`. Os nomes precisam ser diferentes; o email pode se repetir (o app marca esses participantes como **compartilhado**).
 2. **Regras (opcional):** escolha quem, o tipo da regra (**não pode tirar** / **deve tirar**) e quem. As regras valem só no sentido indicado.
 3. **Detalhes do evento (opcional):** nome, data, valor sugerido e um recado. Tudo isso aparece no email.
@@ -155,7 +160,20 @@ Em desenvolvimento, o frontend recarrega sozinho ao salvar um arquivo e o backen
 
 Depois do sorteio, o app mostra **para quem o email foi enviado** (nunca quem tirou quem). Se alguém não recebeu, use **Reenviar** — o resultado é o mesmo, sem refazer o sorteio.
 
+Cada amigo oculto tem **um único sorteio**. Para sortear de novo, use **Criar novo sorteio**: um novo amigo oculto aparece na lista com os mesmos participantes, regras e detalhes do evento, pronto para sortear. O original continua na lista com o resultado dele.
+
 Tudo o que você cadastra é salvo automaticamente no banco (indicador "Tudo salvo" no canto da tela).
+
+### 🔒 Área secreta (debug)
+
+Se algo der errado ("acho que meu email veio errado", "ninguém me tirou"), dá para conferir o sorteio **sem estragar a brincadeira para todo mundo**:
+
+1. Depois do sorteio, a tela do amigo oculto ganha a seção **5 · Área secreta**. Clique em **Abrir a área secreta**.
+2. A tela mostra o sorteio daquele amigo oculto com:
+   - uma **conferência automática** que não revela nenhum par: cada pessoa tirou exatamente uma, foi tirada por exatamente uma, ninguém tirou a si mesmo e todos formam um único ciclo;
+   - para cada pessoa, os botões **Ver amigo oculto** (quem ela tirou) e **Ver quem tirou** (quem tirou ela).
+
+Nada é revelado ao abrir a tela. Antes de cada par aparecer, uma **caixa de confirmação** pede para conferir se ninguém está olhando. Só **um par** aparece de cada vez, e ele some sozinho depois de 15 segundos. Cada consulta é registrada no terminal do servidor (sem mostrar o par).
 
 ---
 
@@ -171,13 +189,15 @@ backend/data/amigo-oculto.db
 
 | Tabela         | O que guarda                                                          |
 | -------------- | --------------------------------------------------------------------- |
-| `participants` | Participantes cadastrados                                             |
-| `rules`        | Regras de bloqueio e obrigatórias                                     |
-| `settings`     | Detalhes do evento e qual é o sorteio atual                           |
-| `draws`        | Sorteios realizados (data, modo de envio, dados do evento)            |
+| `groups`       | Cada amigo oculto: detalhes do evento e qual é o sorteio atual        |
+| `participants` | Participantes de cada amigo oculto                                    |
+| `rules`        | Regras de bloqueio e obrigatórias de cada amigo oculto                |
+| `draws`        | Sorteios realizados (amigo oculto, data, modo de envio, evento)       |
 | `draw_entries` | Para cada sorteio: participante, email, status do envio e quem tirou  |
 
-> ⚠️ **Segredo:** a API nunca devolve quem tirou quem, mas a tabela `draw_entries` guarda essa informação para permitir o reenvio. Se você também participa, **não abra o arquivo do banco**. 😉
+> ⚠️ **Segredo:** a API só devolve quem tirou quem na área secreta (um par por vez). A tabela `draw_entries` guarda essa informação para permitir o reenvio e a conferência. Se você também participa, **não abra o arquivo do banco**. 😉
+
+Bancos criados pela versão anterior (com um único amigo oculto) são convertidos automaticamente na primeira vez que o servidor sobe: o que existia vira o primeiro item da lista.
 
 **Para começar do zero**, pare o servidor e apague a pasta `backend/data/`.
 
@@ -207,15 +227,24 @@ backend/data/amigo-oculto.db
 | Método   | Rota                            | Descrição                                                              |
 | -------- | ------------------------------- | ---------------------------------------------------------------------- |
 | `GET`    | `/api/health`                   | Status do servidor e do email                                          |
-| `GET`    | `/api/state`                    | Participantes, regras, evento e último sorteio (sem revelar pares)     |
-| `PUT`    | `/api/state`                    | Salva participantes, regras e evento                                   |
+| `GET`    | `/api/groups`                   | Lista os amigos ocultos com status e resumo do sorteio                 |
+| `POST`   | `/api/groups`                   | Cria um amigo oculto (`{ event? }`)                                    |
+| `DELETE` | `/api/groups/:id`               | Apaga o amigo oculto com participantes, regras e sorteios              |
+| `GET`    | `/api/groups/:id/state`         | Participantes, regras, evento e último sorteio (sem revelar pares)     |
+| `PUT`    | `/api/groups/:id/state`         | Salva participantes, regras e evento                                   |
+| `POST`   | `/api/groups/:id/draw`          | Sorteia e envia os emails (uma vez por amigo oculto; depois responde 409) |
+| `POST`   | `/api/groups/:id/duplicate`     | Cria um novo amigo oculto com os mesmos participantes e regras (`{ event? }`) |
 | `POST`   | `/api/draw/validate`            | Verifica se o sorteio é possível (não envia nada)                      |
-| `POST`   | `/api/draw`                     | Sorteia e envia os emails                                              |
 | `POST`   | `/api/draw/:drawId/resend`      | Reenvia o email de um participante (`{ participantId, email? }`)       |
-| `DELETE` | `/api/draw/current`             | Tira o último sorteio da tela para preparar um novo                    |
+| `GET`    | `/api/debug/groups/:id/draws`   | 🔒 Sorteios do amigo oculto com a conferência (sem revelar pares)      |
+| `GET`    | `/api/debug/draws/:drawId/reveal` | 🔒 Revela um par (`?participantId=…&direction=receiver\|giver`)     |
 | `GET`    | `/api/email/preview`            | Pré-visualização do template de email                                  |
 
-Exemplo de corpo para `POST /api/draw`:
+As rotas 🔒 são as da área secreta.
+
+O `status` de cada amigo oculto em `GET /api/groups` é `draft` (não sorteado), `drawn` (sorteado) ou `finished` (sorteado e a data do evento já passou).
+
+Exemplo de corpo para `POST /api/groups/:id/draw`:
 
 ```json
 {
@@ -259,8 +288,8 @@ amigo-oculto/
     └── src/
         ├── App.jsx
         ├── api.js            # chamadas para a API
-        ├── components/       # seções da tela
-        ├── hooks/            # estado, validação e status do servidor
+        ├── components/       # lista de amigos ocultos e seções da tela
+        ├── hooks/            # estado, navegação, validação e status do servidor
         └── styles.css
 ```
 
@@ -272,7 +301,7 @@ amigo-oculto/
 npm test
 ```
 
-Os testes cobrem o algoritmo (ciclo único, aleatoriedade, bloqueios e regras obrigatórias de mão única, casos impossíveis), a API (envio, falhas, reenvio, sigilo do resultado) e a persistência no SQLite.
+Os testes cobrem o algoritmo (ciclo único, aleatoriedade, bloqueios e regras obrigatórias de mão única, casos impossíveis), a API (vários amigos ocultos e seus status, envio, falhas, reenvio, sigilo do resultado) e a persistência no SQLite (inclusive a conversão de bancos da versão anterior).
 
 ---
 
